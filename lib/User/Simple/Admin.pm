@@ -10,10 +10,10 @@ User::Simple::Admin - User::Simple user administration
 
 =head1 SYNOPSIS
 
-  $ua = User::Simple::Admin->new($db, $user_table, [$adm_level]);
+  $ua = User::Simple::Admin->new($db, $user_table);
 
-  $ua = User::Simple::Admin->create_db_structure($db, $user_table, 
-                                                 [$adm_level]);
+  $ua = User::Simple::Admin->create_rdbms_db_structure($db, $user_table);
+  $ua = User::Simple::Admin->create_plain_db_structure($db, $user_table);
   $ok = User::Simple::Admin->has_db_structure($db, $user_table);
 
   %users = $ua->dump_users;
@@ -22,13 +22,10 @@ User::Simple::Admin - User::Simple user administration
   $login = $ua->login($id);
   $name = $ua->name($id);
   $level = $ua->level($id);
-  $is_admin = $ua->is_admin($id);
 
   $ok = $usr->set_login($id, $login);
   $ok = $usr->set_name($id, $name);
   $ok = $usr->set_level($id, $level);
-  $ok = $usr->set_admin($id);
-  $ok = $usr->unset_admin($id);
   $ok = $usr->set_passwd($id, $passwd);
   $ok = $usr->clear_session($id);
 
@@ -44,39 +41,40 @@ and an explanation on what-goes-where.
 
 User::Simple::Admin works as a regular administrator would: The module should
 be instantiated only once for all of your users' administration, if possible,
-not instantiated once for each user (in contraposition to L<User::Simple>, as 
-it works from each of the users' perspective in independent instantiations).
+and not instantiated once for each user (in contraposition to L<User::Simple>,
+as it works from each of the users' perspective in independent instantiations).
 
 Note also that User::Simple::Admin does b<not> perform the administrative user
 checks - It is meant to be integrated to your system, and it is your system 
 which should carry out all of the needed authentication checks.
-
-There are some oddly named methods and attributes you will find both in
-L<User::Simple> and this modules - C<is_admin>, C<set_admin>, C<unset_admin>,
-C<adm_level>. Please consider them all as B<deprecated>. They are provided only
-for backward compatibility, and will be dropped in a future version.
 
 =head2 CONSTRUCTOR
 
 Administrative actions for User::Simple modules are handled through this
 Admin object. To instantiate it:
 
-  $ua = User::Simple::Admin->new($db, $user_table, [$adm_level]);
+  $ua = User::Simple::Admin->new($db, $user_table);
 
 $db is an open connection to the database where the user data is stored.
 
 $user_table is the name of the table that holds the users' data.
 
-The optional $adm_level argument indicates from which level on are users
-recognized as administrative - This can be any arbitrary nonnegative integer.
-If this parameter is not specified, it will default to 1, having basically a
-correspondence to Perl's handling of truth values.
-
 If we do not yet have the needed DB structure to store the user information,
 we can use this class method as a constructor as well:
 
-  $ua = User::Simple::Admin->create_db_structure($db, $user_table,
-                                                 [$adm_level])
+  $ua = User::Simple::Admin->create_rdbms_db_structure($db, $user_table);
+
+  $ua = User::Simple::Admin->create_plain_db_structure($db, $user_table);
+
+The first one should be used if your DBI handle ($db) points to a real RDBMS,
+such as PostgreSQL or MySQL. In case you are using a file-based DBD (such as
+DBD::XBase, DBD::DBM, DBD::CVS or any other which does not use a real RDBMS
+for storage), use C<User::Simple::Admin-E<gt>create_plain_db_structure>
+instead. What is the difference? In the first case, we will create a table
+that has internal consistency checks - Some fields are declared NOT NULL, some
+fields are declared UNIQUE, and the user ID is used as a PRIMARY KEY. This 
+cannot, of course, be achieved using file-based structures, so the integrity
+can only be maintained from within our scripts.
 
 =head2 QUERYING FOR DATABASE READINESS
 
@@ -92,18 +90,15 @@ specified table name, use the C<has_db_structure> class method:
 Will return a hash with the data regarding the registered users, in the 
 following form:
 
-  ( $id1 => { level => $level1, is_admin => $is_admin1, 
-              name => $name1, login => $login1},
-    $id2 => { level => $level2, is_admin => $is_admin2,
-              name => $name2, login => $login2},
+  ( $id1 => { level => $level1, name => $name1, login => $login1},
+    $id2 => { level => $level2, name => $name2, login => $login2},
     (...) )
 
 =head2 CREATING, QUERYING AND MODIFYING USERS
 
   $id = $ua->new_user($login, $name, $passwd, $level);
 
-Creates a new user with the specified data. $is_admin is a boolean value - Use
-1 for true, 0 for false. Returns the new user's ID.
+Creates a new user with the specified data. Returns the new user's ID.
 
   $ok = $ua->remove_user($id);
 
@@ -113,7 +108,6 @@ Removes the user specified by the ID.
   $login = $ua->login($id);
   $name = $ua->name($id);
   $level = $ua->level($id);
-  $is_admin = $ua->is_admin($id);
 
 Get the value of each of the mentioned attributes. Note that in order to get
 the ID you can supply the login, every other method answers only to the ID. In
@@ -127,21 +121,6 @@ C<$ua->name($ua->id($login));>
 
 Modifies the requested attribute of the specified user, setting it to the new 
 value.
-
-  $ok = $usr->set_admin($id);
-  $ok = $usr->unset_admin($id);
-
-Sets or removes the administrative status of this user. Please note that this 
-is done relative to the value specified as C<$adm_level> upon the 
-User::Simple::Admin object's instantiation - By calling C<set_admin>, the 
-user's level will be set to the minimum administrative value (this means, to 
-the current C<$adm_level>). By calling unsed_admin, it will be set to zero.
-
-Note that the C<set_admin> and C<unset_admin> methods are provided for 
-backwards compatibility and should be considered as B<deprecated> - In order 
-to set a user's level, you should call C<set_level> instead. Support for these 
-two methods (and to the is_admin idea in general) will be dropped in the 
-future.
 
 =head2 SESSIONS
 
@@ -193,7 +172,13 @@ sub new {
 	return undef;
     }
 
-    $adm_level = 1 unless defined $adm_level;
+    if (defined $adm_level) {
+	carp 'adm_level is considered deprecated and will be removed in'.
+	    ' future releases.';
+    } else {
+	$adm_level = 1;
+    }
+
     if ($adm_level !~ /^\d+$/) {
 	carp "adm_level must be a non-negative integer";
 	return undef;
@@ -220,7 +205,7 @@ sub new {
 ######################################################################
 # Creating the needed structure
 
-sub create_db_structure {
+sub create_rdbms_db_structure {
     my ($class, $db, $table, $sth);
     $class = shift;
     $db = shift;
@@ -229,14 +214,36 @@ sub create_db_structure {
     # Remember some DBD backends don't implement 'serial' - Use 'integer' and
     # some logic on our side instead
     unless ($sth = $db->prepare("CREATE TABLE $table (
-            id integer PRIMARY KEY, 
-            login varchar NOT NULL UNIQUE,
-            name varchar NOT NULL,
-            passwd varchar,
---            is_admin bool NOT NULL DEFAULT 'f',
-            level integer NOT NULL DEFAULT 0,
-            session varchar UNIQUE,
-            session_exp varchar)") and $sth->execute) {
+            id serial PRIMARY KEY, 
+            login varchar(100) NOT NULL UNIQUE,
+            name varchar(100) NOT NULL,
+            passwd char(32),
+            level integer NOT NULL,
+            session char(32) UNIQUE,
+            session_exp varchar(20))") and $sth->execute) {
+	carp "Could not create database structure using table $table";
+	return undef;
+    }
+
+    return $class->new($db, $table);
+}
+
+sub create_plain_db_structure {
+    my ($class, $db, $table, $sth);
+    $class = shift;
+    $db = shift;
+    $table = shift;
+
+    # Remember some DBD backends don't implement 'serial' - Use 'integer' and
+    # some logic on our side instead
+    unless ($sth = $db->prepare("CREATE TABLE $table (
+            id integer, 
+            login varchar(100),
+            name varchar(100),
+            passwd char(32),
+            level integer,
+            session char(32),
+            session_exp varchar(20))") and $sth->execute) {
 	carp "Could not create database structure using table $table";
 	return undef;
     }
@@ -256,7 +263,7 @@ sub has_db_structure {
     # But usually, this check will be enough just to determine if we have the
     # structure ready.
     return 1 if ($sth=$db->prepare("SELECT id, login, name, passwd, level, 
-                 session, session_exp FROM $table LIMIT 1") and $sth->execute);
+                 session, session_exp FROM $table") and $sth->execute);
     return 0;
 }
 
@@ -322,7 +329,7 @@ sub is_admin {
     my ($self, $id);
     $self = shift;
     $id = shift;
-    $self->_debug(2,"is_admin is deprecated! Please use level instead");
+    carp "is_admin is deprecated! Please use level instead";
     return ($self->{adm_level} <= $self->level($id)) ? 1 : 0;
 }
 
@@ -330,10 +337,16 @@ sub is_admin {
 # Modifying information
 
 sub set_login { 
-    my ($self, $id, $new);
+    my ($self, $id, $new, $sth, $ret);
     $self = shift;
     $id = shift;
     $new = shift;
+
+    if (my $used = $self->id($new)) {
+	carp "The requested login is already used (ID $used).";
+	return undef;
+    }
+
     return $self->_set_field($id, 'login', $new);
 }
 
@@ -357,7 +370,7 @@ sub set_admin {
     my ($self, $id);
     $self = shift;
     $id = shift;
-    $self->_debug(2,"set_admin is deprecated! Please use level instead");
+    carp "set_admin is deprecated! Please use level instead";
     return $self->set_level($id, $self->{adm_level});
 }
 
@@ -365,7 +378,7 @@ sub unset_admin {
     my ($self, $id);
     $self = shift;
     $id = shift;
-    $self->_debug(2,"unset_admin is deprecated! Please use level instead");
+    carp "unset_admin is deprecated! Please use level instead";
     return $self->set_level($id, 0);
 }
 
@@ -392,18 +405,32 @@ sub clear_session {
 # User creation and removal
 
 sub new_user { 
-    my ($self, $login, $name, $passwd, $level, $id, $orig_re);
+    my ($self, $login, $name, $passwd, $level, $id, $db, $orig_state, 
+	$has_transact);
     $self = shift;
     $login = shift;
     $name = shift;
     $passwd = shift;
     $level = shift || 0; # Don't whine on undef
 
-    $orig_re = $self->{db}->{RaiseError};
+    # We will use the database handler over and over - Get a shortcut.
+    $db = $self->{db};
+
+    # If available, we will do all this work inside a transaction. Sadly, not
+    # every DBD provides such a facility - By trying to begin_work and
+    # then commit on an empty transaction, we can check if this DBD does 
+    # provide it. 
+    eval { 
+	$db->begin_work; 
+	$db->commit;
+    };
+    $has_transact = $@ ? 0 : 1;
+
+    $orig_state = $db->{RaiseError};
     eval {
-	my ($sth, $id);
-	$self->{db}->begin_work;
-	$self->{db}->{RaiseError} = 1;
+	my ($sth);
+	$db->begin_work if $has_transact;
+	$db->{RaiseError} = 1;
 
 	# Not all DBD backends implement the 'serial' datatype - We use a
 	# simple integer, and we just move the 'serial' logic to this point,
@@ -413,29 +440,35 @@ sub new_user {
 	# 'primary key'. Any DBD implementing unicity will correctly fail. 
 	# And... Well, nobody expects too high trust from a DBD backend which
 	# does not implement unicity, right? :)
-	$sth = $self->{db}->prepare("SELECT id FROM $self->{tbl} ORDER BY
-            id desc LIMIT 1");
+	$sth = $db->prepare("SELECT id FROM $self->{tbl} ORDER BY
+            id desc");
 	$sth->execute;
 	($id) = $sth->fetchrow_array;
 	$id++;
 
-	$sth = $self->{db}->prepare("INSERT INTO $self->{tbl} (id, login, name,
+	$sth = $db->prepare("INSERT INTO $self->{tbl} (id, login, name,
             level) VALUES (?, ?, ?, ?)");
 	$sth->execute($id, $login, $name, $level);
 
+	# But just to be sure, lets retreive the ID from the login.
 	$id = $self->id($login);
 	$self->set_passwd($id, $passwd);
 
-	$self->{db}->commit;
-	$self->{db}->{RaiseError} = $orig_re;
+	$db->commit if $has_transact;
+	$db->{RaiseError} = $orig_state;
     };
     if ($@) {
-	$self->{db}->rollback;
-	$self->{db}->{RaiseError} = $orig_re;
+	if ($has_transact) {
+	    $db->rollback;
+	} else {
+	    carp 'User creation was not successful. This DBD does not support'.
+		' transactions - You might have a half-created user!';
+	}
+	$db->{RaiseError} = $orig_state;
 	carp "Could not create specified user";
 	return undef;
     }
-    return 1;
+    return $id;
 }
 
 sub remove_user { 
@@ -499,23 +532,3 @@ sub _is_valid_field {
 }
 
 1;
-
-# $Log: Admin.pm,v $
-# Revision 1.7  2005/06/15 17:17:10  gwolf
-# Some documentation fixes
-# User::Simple: Finishing touches to breathe independent life to it, so it will
-# become a project of its own ;-)
-#
-# Revision 1.6  2005/05/10 05:06:24  gwolf
-# Replace Crypt::PasswdMD5 for Digest::MD5 for consistency
-#
-# Revision 1.5  2005/05/02 19:11:55  gwolf
-# Fixed a simple warning
-#
-# Revision 1.4  2005/04/06 23:00:09  gwolf
-# Documented
-#
-# Revision 1.3  2005/04/05 00:33:39  gwolf
-# - Admin: Fixed create_db_structure to reflect documented behavior
-# - Documentation details added
-#

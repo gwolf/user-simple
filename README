@@ -2,8 +2,8 @@ User::Simple - Simple user sessions management
 
 User::Simple provides a very simple framework for validating users,
 managing their sessions and storing a minimal set of information (this
-is, a meaningful user login/password pair and the user's name) via a
-database. The sessions can be used as identifiers for i.e. cookies on
+is, a meaningful user login/password pair, the user's name and level) via
+a database. The sessions can be used as identifiers for i.e. cookies on
 a Web system. The passwords are stored as MD5 hashes (this means, the
 password is not stored in clear text). 
 
@@ -11,7 +11,8 @@ User::Simple includes User::Simple::Admin, which provides the basic
 functionalities to manage the users.
 
 User::Simple was originally developed with a PostgreSQL database in
-mind, but should work with any DBD.
+mind, but should work with any DBD, even those not implemented with a
+real RDBMS (i.e. XBase, CSV, etc).
 
 INSTALLATION
 
@@ -29,6 +30,10 @@ This module requires these other modules and libraries:
 
   Date::Calc
   Digest::MD5
+  DBI
+
+DBI is not called directly from within the module, but it is required
+in order to do anything with it.
 
 COPYRIGHT AND LICENCE
 

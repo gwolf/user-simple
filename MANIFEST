@@ -1,8 +1,8 @@
 Changes
-Makefile.PL
-MANIFEST
-README
-t/User-Simple.t
 lib/User/Simple.pm
 lib/User/Simple/Admin.pm
-META.yml                                 Module meta-data (added by MakeMaker)
+Makefile.PL
+MANIFEST
+META.yml
+README
+t/User-Simple.t

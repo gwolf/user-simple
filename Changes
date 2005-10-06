@@ -1,5 +1,9 @@
 Revision history for Perl extension User::Simple.
 
+1.0  Sun Aug 21 23:06:08 2005
+        - Now correctly works with any kind of DBD backend
+	- Added a complete test suite, which surprisingly worked!
+
 0.9  Sat Jul 30 10:45:15 2005
 	- Added Date::Calc and Digest::MD5 as prerequisite modules
         - Added a more granular 'level' for the users instead of the 

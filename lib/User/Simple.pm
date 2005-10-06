@@ -13,8 +13,7 @@ User::Simple - Simple user sessions management
   $usr = User::Simple->new(db => $db,
                            [tbl => $user_table],
                            [durat => $duration],
-                           [debug => $debug],
-                           [adm_level => $level]);
+                           [debug => $debug]);
 
   $ok = $usr->ck_session($session);
   $ok = $usr->ck_login($login, $passwd, [$no_sess]);
@@ -26,7 +25,6 @@ User::Simple - Simple user sessions management
   $id = $usr->id;
   $session = $usr->session;
   $level = $usr->level;
-  $ok = $usr->is_admin;
 
 =head1 DESCRIPTION
 
@@ -56,7 +54,7 @@ In order to create a User::Simple object, call the new argument with an
 active DBI (database connection) object as its only argument:
 
   $usr = User::Simple->new(db => $db, [tbl => $table], [durat => $duration],
-                           [debug => $debug], [adm_level => $level]);
+                           [debug => $debug]);
 
 Of course, the database must have the right structure in it - please check
 L<User::Simple::Admin> for more information.
@@ -74,18 +72,6 @@ to make) are shown if debug is >= 1, regular failure messages are shown if
 debug >= 3, absolutely everything is shown if debug == 5. Be warned that when
 debug is set to 5, information such as cleartext passwords will be logged as 
 well!
-
-C<adm_level> gives us an extra way to tell if a user has administrative 
-privileges - The users with a level under the number specified here will be 
-seen as unprivileged, and those whose level is equal or higher than it will
-be treated as administrative users. The user level assigned to a user does not
-mean anything for User::Simple, but might be used inside your application. If
-C<adm_level> is not specified, it will default to 1 (meaning that regular 
-users' level is only 0, and any positive integer is an administrative user, as
-traditional in Perl's truth management). Please note (explanation follows 
-below) that using C<adm_level> and the C<is_admin> method is deprecated in
-favor of directly querying C<$usr-E<gt>level>, and will be dropped in the 
-future.
 
 =head2 SESSION CREATION/DELETION
 
@@ -121,24 +107,12 @@ To change the user's password:
 
   $ok = $usr->set_passwd($new_pass);
 
-=head2 USER LEVEL / ADMINISTRATIVE ACCESS
+=head2 USER LEVEL
 
-To check for the user level (or simply to check if the user has administrative
-access) (again, see L<User::Simple::Admin> for further details):
+To check for the user level (again, see L<User::Simple::Admin> for further 
+details):
 
   $level = $usr->level;
-  $ok = $usr->is_admin;
-
-Please note that User::Simple will only tell your application whether a user
-has administrative access (that is, C<$usr-E<gt>is_admin> is true, or 
-C<$usr-E<gt>level> is equal or larger than C<adm_level>. The C<is_admin> method
-is for integration to your system, and does not mean that the user can access 
-the functionality of User::Simple::Admin.
-
-Yes, this last note takes away part of the nice simplicity of User::Simple, and
-that is not a good thing. This is still a very young module, but has already
-some systems depending on its way of working. Consider C<is_admin> as
-B<deprecated>, support for it will be dropped in the future.
 
 =head1 DEPENDS ON
 
@@ -146,24 +120,22 @@ L<Date::Calc>
 
 L<Digest::MD5>
 
+L<DBI> (and a suitable L<DBD> backend)
+
 =head1 SEE ALSO
 
 L<User::Simple::Admin> for administrative routines
 
 =head1 TO DO
 
-This module still requires a decent test suite. In order for it to become 
-automatic, we need to be able to operate without a real RDBMS, i.e., with
-DBD::CSV. 
+I would like to separate a bit the table structure, allowing for flexibility
+- This means, if you added some extra fields to the table, provide an easy way
+to access them. Currently, you have to reach in from outside User::Simple, 
+skipping the abstraction, to get them.
 
-The C<is_admin>, C<adm_level> and related infrastructure feels like a kludge,
-and cries to be removed. As for now, a simple warning about it being deprecated
-will do.
-
-I would also like to separate a bit the table structure, allowing for
-flexibility - This means, if you added some extra fields to the table, 
-provide an easy way to access them. Currently, you have to reach in from
-outside User::Simple, skipping the abstraction, to get them.
+Although no longer documented (don't use them, please!), we still have the 
+adm_level/is_admin functionality. For cleanness, it should be removed by the
+next release.
 
 Besides that, it works as expected (that is, as I expect ;-) )
 
@@ -184,7 +156,7 @@ use Date::Calc qw(Today_and_Now Add_Delta_DHMS Delta_DHMS);
 use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
-our $VERSION = '0.9';
+our $VERSION = '1.0';
 
 ######################################################################
 # Constructor
@@ -199,6 +171,10 @@ sub new {
 	next if $key =~ /^(db|debug|durat|tbl|adm_level)$/;
 	carp "Unknown argument received: $key";
 	return undef;
+    }
+
+    if (defined($init{adm_level})) {
+	carp "adm_level is deprecated and will be dropped in future releases";
     }
 
     # Default values
@@ -219,7 +195,7 @@ sub new {
 	return undef;
     }
     unless ($sth=$init{db}->prepare("SELECT id, login, name, level 
-        FROM $init{tbl} LIMIT 1") and $sth->execute) {
+        FROM $init{tbl}") and $sth->execute) {
 	carp "Table $init{tbl} does not exist or has wrong structure";
 	return undef;
     }
@@ -258,6 +234,8 @@ sub ck_session {
 
     $self->_debug(5, "Checking session $sess");
 
+    $self->_clean_user_data;
+
     unless ($sth = $self->{db}->prepare("SELECT id, session_exp 
             FROM $self->{tbl} WHERE session = ?") and $sth->execute($sess) 
 	    and ($id, $exp) = $sth->fetchrow_array) {
@@ -287,6 +265,8 @@ sub ck_login {
     $no_sess = shift;
  
     $self->_debug(5, "Verifying login: $login/$pass");
+
+    $self->_clean_user_data;
 
     # Is this login/password valid?
     unless ($sth = $self->{db}->prepare("SELECT id, passwd FROM $self->{tbl}
@@ -337,9 +317,7 @@ sub end_session {
         session_exp = NULL WHERE id = ?");
     $sth->execute($self->{id});
 
-    for my $key qw(id level login name session session_exp) {
-	delete $self->{$key};
-    }
+    $self->_clean_user_data;
 
     return 1;
 }
@@ -461,24 +439,11 @@ sub _refresh_session {
     }
 }
 
-1;
+sub _clean_user_data {
+    my $self = shift;
+    for my $key qw(id level login name session session_exp) {
+	delete $self->{$key};
+    }
+}
 
-# $Log: Simple.pm,v $
-# Revision 1.7  2005/06/15 17:17:10  gwolf
-# Some documentation fixes
-# User::Simple: Finishing touches to breathe independent life to it, so it will
-# become a project of its own ;-)
-#
-# Revision 1.6  2005/06/07 01:23:14  gwolf
-# Fixed: Used hardwired reference for table name
-#
-# Revision 1.5  2005/05/10 05:06:24  gwolf
-# Replace Crypt::PasswdMD5 for Digest::MD5 for consistency
-#
-# Revision 1.4  2005/04/14 00:03:41  gwolf
-# Continuing with the translation, it _seems_ everything is working as it should
-#
-# Revision 1.3  2005/04/05 00:33:39  gwolf
-# - Admin: Fixed create_db_structure to reflect documented behavior
-# - Documentation details added
-#
+1;
