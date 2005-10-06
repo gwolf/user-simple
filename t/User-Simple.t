@@ -11,7 +11,7 @@ my ($db, $dbdir);
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 33;
+use Test::More tests => 39;
 BEGIN { use_ok('User::Simple'); use_ok('User::Simple::Admin') };
 
 #########################
@@ -31,41 +31,41 @@ SKIP: {
     ### First, the User::Simple::Admin tests...
     ###
 
-    # Create now the database and our table - Add 'descr' and 'privlevel' 
+    # Create now the database and our table - Add 'descr' and 'adm_level' 
     # fields
     ok($ua = User::Simple::Admin->create_plain_db_structure($db,'user_simple',
-	      'descr varchar(30), privlevel integer'),
+	      'descr varchar(30), adm_level integer'),
        'Created a new table and an instance of a User::Simple::Admin object');
 
     # Create some user accounts
     ok(($ua->new_user(login => 'admin',
 		      descr => 'Administrative user',
 		      passwd => 'Iamroot',
-		      privlevel => 5) and
+		      adm_level => 5) and
 	$ua->new_user(login => 'adm2',
 		      descr => 'Another administrative user',
 		      passwd => 'stillagod',
-		      privlevel => 2) and
+		      adm_level => 2) and
 	$ua->new_user(login => 'user1',
 		      descr => 'Regular user 1',
 		      passwd => 'a_password',
-		      privlevel => 0) and
+		      adm_level => 0) and
 	$ua->new_user(login => 'user2',
 		      descr => 'Regular user 2',
 		      passwd => 'a_password',
-		      privlevel => 0) and
+		      adm_level => 0) and
 	$ua->new_user(login => 'user3',
 		      descr => 'Regular user 3',
 		      passwd => 'a_password',
-		      privlevel => 0) and
+		      adm_level => 0) and
 	$ua->new_user(login => 'user4',
 		      descr => 'Regular user 4',
 		      passwd => '',
-		      privlevel => 0) and
+		      adm_level => 0) and
 	$ua->new_user(login => 'user5',
 		      descr => 'Regular user 5',
 		      passwd => 'a_password',
-		      privlevel => 0)),
+		      adm_level => 0)),
        'Created some users to test on');
 
     # Does dump_users report the right amount of users?
@@ -80,12 +80,14 @@ SKIP: {
     is($ua->login($adm_id), 'admin', 'First user reports the right login');
     is($ua->descr($adm_id), 'Administrative user', 
        'First user reports the right descr');
-    is($ua->privlevel($adm_id), 5, 'First user reports the right privlevel');
+    is($ua->adm_level($adm_id), 5, 
+       'First user reports the right adm_level');
     
     is($ua->login($usr_id), 'user2', 'Second user reports the right login');
     is($ua->descr($usr_id), 'Regular user 2', 
        'Second user reports the right descr');
-    is($ua->privlevel($usr_id), 0, 'Second user reports the right privlevel');
+    is($ua->adm_level($usr_id), 0, 
+       'Second user reports the right adm_level');
 
     # Change their details
     ok($ua->set_login($usr_id, 'luser1'), 
@@ -93,7 +95,7 @@ SKIP: {
     is($ua->id('luser1'), $usr_id, 'Changed user login reported correctly');
 
     ok(($ua->set_descr($usr_id, 'Irregular luser 1') and 
-	$ua->set_privlevel($usr_id, 1)),
+	$ua->set_adm_level($usr_id, 1)),
        "Successfully changed other of this user's details");
 
     diag('Next test will issue a warning - Disregard.');
@@ -120,7 +122,20 @@ SKIP: {
        'Successfully logged in with one of the users');
     is($usr->login, 'user5', 'Reported login matches');
     is($usr->descr, 'Regular user 5', 'Reported descr matches');
-    is($usr->privlevel, 0, 'Reported privlevel matches');
+    is($usr->adm_level, 0, 'Reported adm_level matches');
+
+    # Verify we can change the changeable fields and that we cannot change 
+    # restricted ones.
+    ok($usr->set_descr('A new description'), "Able to change a user's descr");
+    is($usr->descr, 'A new description', 'descr changed successfully');
+
+    eval { $usr->set_login('please_kill_me') };
+    ok($!, 'Prevented a login change');
+    is($usr->login, 'user5', 'Previous login still there');
+
+    eval { $usr->set_adm_level(5) };
+    ok($!, 'Prevented an adm_level change');
+    is($usr->adm_level, 0, 'Previous adm_level still there');
 
     # Get the user's session
     ok($session = $usr->session, "Retreived the user's session");
@@ -132,14 +147,14 @@ SKIP: {
     is($usr->id, undef, "Nobody's ID successfully reports nothing");
     is($usr->login, undef, "Nobody's login successfully reports nothing");
     is($usr->descr, undef, "Nobody's descr successfully reports nothing");
-    is($usr->privlevel, undef, 
-       "Nobody's privlevel successfully reports nothing");
+    is($usr->adm_level, undef, 
+       "Nobody's adm_level successfully reports nothing");
 
     # Now log in using the session we just retreived - We should get the 
     # full data again.
     ok($usr->ck_session($session), 'Successfully checked for a real session');
     is($usr->login, 'user5', 'Reported login matches');
-    is($usr->descr, 'Regular user 5', 'Reported descr matches');
-    is($usr->privlevel, 0, 'Reported privlevel matches');
+    is($usr->descr, 'A new description', 'Reported descr matches');
+    is($usr->adm_level, 0, 'Reported adm_level matches');
 
 }

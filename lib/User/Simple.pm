@@ -23,6 +23,7 @@ User::Simple - Simple user sessions management
   $session = $usr->session;
 
   $otherattrib = $user->otherattrib
+  $ok = $user->set_otherattrib($value);
 
 =head1 DESCRIPTION
 
@@ -43,9 +44,11 @@ NOT NULL/UNIQUE constraints.
 The functionality is split into two modules, L<User::Simple> and 
 L<User::Simple::Admin>. This module provides the functionality your system
 will need for any interaction started by the user - Authentication, session
-management, querying the user's data and changing the password. Any other
-changes (i.e., changing the user's login, level or any attributes you define) 
-should be carried out using L<User::Simple::Admin>.
+management, querying the user's data, changing the password and changing any
+attributes you define not beginning with C<adm_>. Note that you cannot directly
+modify a user's login, session or session expiry from within this module - Just
+as a general principle, avoid changing logins. If you absolutely must, use 
+User::Simple::Admin instead ;-)
 
 =head2 CONSTRUCTOR
 
@@ -126,6 +129,11 @@ To change the user's password:
 
 Note that an empty password will not be accepted.
 
+To change any attribute defined by you and not labeled as for administrative
+use (this is, its name does not start with C<adm_>):
+
+  $ok = $usr->set_otherattrib($new_value);
+
 =head1 DEPENDS ON
 
 L<Date::Calc>
@@ -156,7 +164,7 @@ use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
 our $AUTOLOAD;
-our $VERSION = '1.23';
+our $VERSION = '1.3';
 
 ######################################################################
 # Constructor/destructor
@@ -359,11 +367,10 @@ sub set_passwd {
 
 # Other attributes are retreived via AUTOLOAD
 sub AUTOLOAD {
-    my ($self, $name, $myclass, $raise_error, $sth, $value);
+    my ($self, $newval, $name, $myclass, $set, $raise_error, $value, $valid);
     $self = shift;
+    $newval = shift;
     $name = $AUTOLOAD;
-
-    $self->_debug(5, "Querying for autoloaded $name field");
 
     # Autoload gives us the fully qualified method name being called - Get our
     # class name and strip it off $name. And why the negated index? Just to be
@@ -377,6 +384,16 @@ sub AUTOLOAD {
 	substr($name,0,length($myclass)+2,'');
     }
 
+    # Is the user requesting a value or modifying it?
+    $set = 0;
+    if ($name =~ /^set_(.+)$/) {
+	$set = 1;
+	$name = $1;
+    }
+
+    $self->_debug(5, sprintf('%s for autoloaded field "%s"', 
+			     ($set ? 'Modifying' : 'Querying'), $name));
+
     # We require the name to consist only of alphanumeric characters or 
     # underscores
     $name =~ /^[\w\d\_]+$/ or croak "Invalid field name '$name'";
@@ -388,23 +405,44 @@ sub AUTOLOAD {
     # In order to check if $name is a valid field in the DB, query for it -
     # but do it inside an eval, as we might get killed!
     eval {
+	my ($sth);
 	$self->{db}{RaiseError} = 1;
 
-	$sth = $self->{db}->prepare("SELECT $name FROM $self->{tbl} WHERE
-            id = ?");
-	$sth->execute($self->id);
+	if ($set) {
+	    if ($name =~ /^(session|login|adm_)/) {
+		# The field is valid, the access is not - $valid will be used
+		# to decide how to die.
+		$valid = 1;
+		die "Invalid field $name";
+	    }
+
+	    $sth = $self->{db}->prepare("UPDATE $self->{tbl} SET $name = ?
+                WHERE id = ?");
+	    $sth->execute($newval, $self->id);
+
+	    # We should return success/failure - This is a good and easy way to
+	    # check - although, yes, it's a second call to AUTOLOAD.
+	    $value = ($self->$name eq $newval) ? 1 : 0;
+	} else {
+	    $sth = $self->{db}->prepare("SELECT $name FROM $self->{tbl} WHERE
+                id = ?");
+	    $sth->execute($self->id);
+	    ($value) = $sth->fetchrow_array;
+	}
     };
     if ($@) {
 	# Yes, we will croak and die - But this call might be also trapped.
 	# Restore the RaiseError anyway.
 	$self->{db}{RaiseError} = $raise_error;
+	if ($valid) {
+	    croak "Access to '$name' restricted";
+	} 
 	croak "Field '$name' does not exist in the User::Simple table!";
     }
 
     # Restore the RaiseError
     $self->{db}{RaiseError} = $raise_error;
 
-    ($value) = $sth->fetchrow_array;
     return $value;
 }
 

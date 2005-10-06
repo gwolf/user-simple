@@ -11,8 +11,10 @@ User::Simple::Admin - User::Simple user administration
 
   $ua = User::Simple::Admin->new($db, $user_table);
 
-  $ua = User::Simple::Admin->create_rdbms_db_structure($db, $user_table);
-  $ua = User::Simple::Admin->create_plain_db_structure($db, $user_table);
+  $ua = User::Simple::Admin->create_rdbms_db_structure($db, $user_table,
+      [$extra_sql]);
+  $ua = User::Simple::Admin->create_plain_db_structure($db, $user_table,
+      [$extra_sql]);
   $ok = User::Simple::Admin->has_db_structure($db, $user_table);
 
   %users = $ua->dump_users;
@@ -95,6 +97,10 @@ C<session> and C<session_exp>. Don't mess with them ;-) Avoid adding any fields
 starting with C<set_> or called as any method defined here, as they will 
 become unreachable. And, of course, keep in mind what SQL construct does your 
 DBD support.
+
+If you add any fields with names starting with C<adm_>, they will be visible 
+but not modifiable from within L<User::Simple> - You will only be able to
+modify them from L<User::Simple::Admin>.
 
 =head2 QUERYING FOR DATABASE READINESS
 
