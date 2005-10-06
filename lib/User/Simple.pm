@@ -156,7 +156,7 @@ use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
 our $AUTOLOAD;
-our $VERSION = '1.2';
+our $VERSION = '1.22';
 
 ######################################################################
 # Constructor/destructor
@@ -194,8 +194,8 @@ sub new {
 	carp "Invalid table name $init{tbl}";
 	return undef;
     }
-    unless ($sth=$init{db}->prepare("SELECT id, login, level 
-        FROM $init{tbl}") and $sth->execute) {
+    unless ($sth=$init{db}->prepare("SELECT id, login FROM $init{tbl}") and
+	    $sth->execute) {
 	carp "Table $init{tbl} does not exist or has wrong structure";
 	return undef;
     }
