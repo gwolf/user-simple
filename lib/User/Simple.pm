@@ -1,4 +1,3 @@
-# $Id: Simple.pm,v 1.7 2005/06/15 17:17:10 gwolf Exp $
 use warnings;
 use strict;
 
@@ -20,20 +19,20 @@ User::Simple - Simple user sessions management
   $ok = $usr->set_passwd($new_pass);
   $usr->end_session;
 
-  $name = $usr->name;
-  $login = $usr->login;
   $id = $usr->id;
   $session = $usr->session;
-  $level = $usr->level;
+
+  $otherattrib = $user->otherattrib
 
 =head1 DESCRIPTION
 
 User::Simple provides a very simple framework for validating users,
 managing their sessions and storing a minimal set of information (this
-is, a meaningful user login/password pair, the user's name and privilege 
-level) via a database. The sessions can be used as identifiers for i.e. 
-cookies on a Web system. The passwords are stored as MD5 hashes (this means, 
-the password is never stored in clear text).
+is, a meaningful user login/password pair, and privilege level) via a database,
+while providing a transparent way to access any other attributes you might
+define. The sessions can be used as identifiers for i.e. cookies on a Web 
+system. The passwords are stored as MD5 hashes (this means, the password is 
+never stored in clear text).
 
 User::Simple was originally developed with a PostgreSQL database in
 mind, but should work with any real DBMS. Sadly, this rules out DBD::CSV,
@@ -45,8 +44,8 @@ The functionality is split into two modules, L<User::Simple> and
 L<User::Simple::Admin>. This module provides the functionality your system
 will need for any interaction started by the user - Authentication, session
 management, querying the user's data and changing the password. Any other
-changes (i.e., changing the user's name, login or level) should be carried out 
-using L<User::Simple::Admin>.
+changes (i.e., changing the user's login, level or any attributes you define) 
+should be carried out using L<User::Simple::Admin>.
 
 =head2 CONSTRUCTOR
 
@@ -97,22 +96,35 @@ To verify whether we have successfully validated a user:
 
 =head2 QUERYING THE CURRENT USER'S DATA
 
-To check the user's attributes (name, login and ID):
+To check the user's core attributes (login and ID):
 
-  $name = $usr->name;
   $login = $usr->login;
   $id = $usr->id;
+
+You might add extra columns to the User::Simple table in your database - You
+will still be able to query for them in the same way:
+
+  $otherattrib = $user->otherattrib;
+
+i.e.:
+
+  $name = $user->name
+  $login = $usr->login;
+
+Note that 'name' and 'level' were core attributes until User::Simple version 
+1.0 - In order to keep User::Simple as simple and extensible as possible, they
+became extended attributes. You should not have to modify your code using 
+C<User::Simple> anyway, as changes are transparent. Some minor API changes do 
+happen in C<User::Simple::Admin>, though. 
+
+Of course, beware: if the field does not exist, User::Simple will raise an 
+error and die just as if an unknown method had been called.
 
 To change the user's password:
 
   $ok = $usr->set_passwd($new_pass);
 
-=head2 USER LEVEL
-
-To check for the user level (again, see L<User::Simple::Admin> for further 
-details):
-
-  $level = $usr->level;
+Note that an empty password will not be accepted.
 
 =head1 DEPENDS ON
 
@@ -125,19 +137,6 @@ L<DBI> (and a suitable L<DBD> backend)
 =head1 SEE ALSO
 
 L<User::Simple::Admin> for administrative routines
-
-=head1 TO DO
-
-I would like to separate a bit the table structure, allowing for flexibility
-- This means, if you added some extra fields to the table, provide an easy way
-to access them. Currently, you have to reach in from outside User::Simple, 
-skipping the abstraction, to get them.
-
-Although no longer documented (don't use them, please!), we still have the 
-adm_level/is_admin functionality. For cleanness, it should be removed by the
-next release.
-
-Besides that, it works as expected (that is, as I expect ;-) )
 
 =head1 AUTHOR
 
@@ -156,10 +155,11 @@ use Date::Calc qw(Today_and_Now Add_Delta_DHMS Delta_DHMS);
 use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
-our $VERSION = '1.0';
+our $AUTOLOAD;
+our $VERSION = '1.2';
 
 ######################################################################
-# Constructor
+# Constructor/destructor
 
 sub new {
     my ($class, $self, %init, $sth);
@@ -194,7 +194,7 @@ sub new {
 	carp "Invalid table name $init{tbl}";
 	return undef;
     }
-    unless ($sth=$init{db}->prepare("SELECT id, login, name, level 
+    unless ($sth=$init{db}->prepare("SELECT id, login, level 
         FROM $init{tbl}") and $sth->execute) {
 	carp "Table $init{tbl} does not exist or has wrong structure";
 	return undef;
@@ -211,11 +211,6 @@ sub new {
 	return undef;
     }
 
-    unless ($init{adm_level} =~ /^\d+$/ and $init{adm_level} >= 0) {
-	carp "Administrative level must be a non-negative integer";;
-	return undef;
-    }
-
     $self = { %init };
     bless $self, $class;
 
@@ -223,6 +218,9 @@ sub new {
 
     return $self;
 }
+
+# As we are using autoload, better explicitly leave this as an empty sub
+sub DESTROY {}
 
 ######################################################################
 # User validation
@@ -234,7 +232,9 @@ sub ck_session {
 
     $self->_debug(5, "Checking session $sess");
 
-    $self->_clean_user_data;
+    # Before checking anything, make sure we don't retain an expired 
+    # authorization
+    $self->{id} = undef;
 
     unless ($sth = $self->{db}->prepare("SELECT id, session_exp 
             FROM $self->{tbl} WHERE session = ?") and $sth->execute($sess) 
@@ -250,11 +250,10 @@ sub ck_session {
     }
 
     $self->{id} = $id;
-    $self->_populate_from_id;
     $self->_refresh_session;
     $self->_debug(5,"Session successfully checked for ID $id");
 
-    return $self->{id};
+    return $self->id;
 }
 
 sub ck_login {
@@ -266,7 +265,9 @@ sub ck_login {
  
     $self->_debug(5, "Verifying login: $login/$pass");
 
-    $self->_clean_user_data;
+    # Before checking anything, make sure we don't retain an expired 
+    # authorization
+    $self->{id} = undef;
 
     # Is this login/password valid?
     unless ($sth = $self->{db}->prepare("SELECT id, passwd FROM $self->{tbl}
@@ -300,24 +301,23 @@ sub ck_login {
 
     # Populate the object with the user's data
     $self->{id} = $id;
-    $self->_populate_from_id;
     $self->_refresh_session;
     $self->_debug(5,"Login successfully checked for ID $id");
-    return $self->{id};
+    return $self->id;
 }
 
 sub end_session {
     my ($self, $sth);
     $self = shift;
-    $self->_debug(5, "Closing session for $self->{id}");
+    $self->_debug(5, 'Closing session for ' .$self->id);
 
-    return undef unless ($self->{id});
+    return undef unless ($self->id);
 
     $sth = $self->{db}->prepare("UPDATE $self->{tbl} SET session = NULL,
         session_exp = NULL WHERE id = ?");
-    $sth->execute($self->{id});
+    $sth->execute($self->id);
 
-    $self->_clean_user_data;
+    $self->{id} = undef;
 
     return 1;
 }
@@ -325,38 +325,87 @@ sub end_session {
 ######################################################################
 # Accessors, mutators
 
-sub is_valid { my $self = shift; return $self->{id} ? 1 : 0; }
-sub name { my $self = shift; return $self->{name}; }
-sub login { my $self = shift; return $self->{login}; }
-sub id { my $self = shift; return $self->{id}; }
-sub session { my $self = shift; return $self->{session}; }
-sub level { my $self = shift; return $self->{level}; }
-
-sub is_admin { 
+sub is_valid { 
     my $self = shift; 
-    $self->_debug(2,"is_admin is deprecated! Please use level instead");
-    return 1 if $self->level >= $self->{adm_level};
-    return 0;
+    return $self->id ? 1 : 0; 
+}
+
+sub id { 
+    my $self = shift; 
+    return $self->{id}; 
 }
 
 sub set_passwd {
     my ($self, $pass, $crypted, $sth);
     $self = shift;
     $pass = shift;
-    $crypted = md5_hex($pass, $self->{id});
 
-    return undef unless ($self->{id} and $pass);
+    return undef unless ($self->id and $pass);
 
-    $self->_debug(5, "Setting $self->{login}'s password to $pass ($crypted)");
+    $crypted = md5_hex($pass, $self->id);
+
+    $self->_debug(5, sprintf('Setting %s\'s password to %s (%s)', 
+			     $self->login, $pass, $crypted));
 
     unless ($sth = $self->{db}->prepare("UPDATE $self->{tbl} SET passwd = ? 
             WHERE id = ?") and 
-	    $sth->execute($crypted, $self->{id})) {
+	    $sth->execute($crypted, $self->id)) {
 	$self->_debug(1,"Could not set the requested password");
 	return undef;
     }
 
     return 1;
+}
+
+# Other attributes are retreived via AUTOLOAD
+sub AUTOLOAD {
+    my ($self, $name, $myclass, $raise_error, $sth, $value);
+    $self = shift;
+    $name = $AUTOLOAD;
+
+    $self->_debug(5, "Querying for autoloaded $name field");
+
+    # Autoload gives us the fully qualified method name being called - Get our
+    # class name and strip it off $name. And why the negated index? Just to be
+    # sure we don't discard what we don't want to - Either it is at the
+    # beginning, or we don't discard a thing
+    $name = $AUTOLOAD;
+    $myclass = ref($self);
+    if (!index($name, $myclass)) {
+	# Substitute in $name from the beginning (0) to the length of the class
+	# name plus two (that is, strip the '::') with nothing.
+	substr($name,0,length($myclass)+2,'');
+    }
+
+    # We require the name to consist only of alphanumeric characters or 
+    # underscores
+    $name =~ /^[\w\d\_]+$/ or croak "Invalid field name '$name'";
+
+    # Store the RaiseError, as we don't want to change state outside our
+    # scope
+    $raise_error = $self->{db}{RaiseError};
+
+    # In order to check if $name is a valid field in the DB, query for it -
+    # but do it inside an eval, as we might get killed!
+    eval {
+	$self->{db}{RaiseError} = 1;
+
+	$sth = $self->{db}->prepare("SELECT $name FROM $self->{tbl} WHERE
+            id = ?");
+	$sth->execute($self->id);
+    };
+    if ($@) {
+	# Yes, we will croak and die - But this call might be also trapped.
+	# Restore the RaiseError anyway.
+	$self->{db}{RaiseError} = $raise_error;
+	croak "Field '$name' does not exist in the User::Simple table!";
+    }
+
+    # Restore the RaiseError
+    $self->{db}{RaiseError} = $raise_error;
+
+    ($value) = $sth->fetchrow_array;
+    return $value;
 }
 
 ######################################################################
@@ -371,23 +420,6 @@ sub _debug {
     $text = shift;
 
     carp $text if $self->{debug} >= $level;
-    return 1;
-}
-
-# Once we have the user's ID, we populate the object by recalling all of the
-# database's fields.
-# Takes no arguments but the object itself.
-sub _populate_from_id {
-    my ($self, $sth);
-    $self=shift;
-
-    $sth=$self->{db}->prepare("SELECT login, name, level, session, 
-        session_exp FROM $self->{tbl} WHERE id=?");
-    $sth->execute($self->{id});
-
-    ($self->{login}, $self->{name}, $self->{level}, $self->{session}, 
-     $self->{session_exp}) = $sth->fetchrow_array;
-
     return 1;
 }
 
@@ -421,7 +453,7 @@ sub _refresh_session {
     $self = shift;
 
     # Do we have an identified user?
-    unless ($self->{id}) {
+    unless ($self->id) {
 	$self->_debug(3,"Cannot refresh session: User not yet identified");
 	return undef;
     }
@@ -433,16 +465,9 @@ sub _refresh_session {
 
     unless ($sth = $self->{db}->prepare("UPDATE $self->{tbl} SET 
             session_exp = ? WHERE id = ?") and
-	    $sth->execute($new_exp, $self->{id})) {
+	    $sth->execute($new_exp, $self->id)) {
 	$self->_debug(1,"Couldn't refresh session.");
 	return undef;
-    }
-}
-
-sub _clean_user_data {
-    my $self = shift;
-    for my $key qw(id level login name session session_exp) {
-	delete $self->{$key};
     }
 }
 

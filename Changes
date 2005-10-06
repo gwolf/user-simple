@@ -1,5 +1,22 @@
 Revision history for Perl extension User::Simple.
 
+1.2  Fri Sep 23 13:43:00 2005
+        - API CHANGE - API CHANGE - API CHANGE: Some changes in
+	  User::Admin::Simple (in user creation, database structure creation)
+	- Added generic (AUTOLOADed) methods to both User::Simple and
+	  User::Simple::Admin to deal with unknown attributes in the
+	  table
+	- Finally (completely) removed the deprecated is_admin
+	  infrastructure 
+	- Name and level are not explicitly implemented from within
+	  the class, they become (if required by the user) AUTOLOADed.
+	- Added examples/user-simple-admin, a command-line interface
+	  for managing User::Simple tables
+
+1.1  Thu Sep 08 14:40:05 2005
+        - Never really released, but PAUSE won't allow me to re-use
+	  this version number... Sorry
+
 1.0  Sun Aug 21 23:06:08 2005
         - Now correctly works with any kind of DBD backend
 	- Added a complete test suite, which surprisingly worked!

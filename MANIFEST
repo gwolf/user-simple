@@ -6,3 +6,4 @@ MANIFEST
 META.yml
 README
 t/User-Simple.t
+examples/user-simple-admin

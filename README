@@ -2,10 +2,11 @@ User::Simple - Simple user sessions management
 
 User::Simple provides a very simple framework for validating users,
 managing their sessions and storing a minimal set of information (this
-is, a meaningful user login/password pair, the user's name and level) via
-a database. The sessions can be used as identifiers for i.e. cookies on
-a Web system. The passwords are stored as MD5 hashes (this means, the
-password is not stored in clear text). 
+is, a meaningful user login/password pair) and allowing for
+transparent access of arbitrary data (i.e. the user's name, privilege
+level, etc.) via a database. The sessions can be used as identifiers
+for i.e. cookies on a Web system. The passwords are stored as MD5
+hashes (this means, the password is not stored in clear text). 
 
 User::Simple includes User::Simple::Admin, which provides the basic
 functionalities to manage the users.
