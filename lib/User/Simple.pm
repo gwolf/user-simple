@@ -13,7 +13,8 @@ User::Simple - Simple user sessions management
   $usr = User::Simple->new(db => $db,
                            [tbl => $user_table],
                            [durat => $duration],
-                           [debug => $debug] );
+                           [debug => $debug],
+                           [adm_level => $level]);
 
   $ok = $usr->ck_session($session);
   $ok = $usr->ck_login($login, $passwd, [$no_sess]);
@@ -24,27 +25,38 @@ User::Simple - Simple user sessions management
   $login = $usr->login;
   $id = $usr->id;
   $session = $usr->session;
+  $level = $usr->level;
   $ok = $usr->is_admin;
 
 =head1 DESCRIPTION
 
 User::Simple provides a very simple framework for validating users,
 managing their sessions and storing a minimal set of information (this
-is, a meaningful user login/password pair and the user's name) via a
-database. The sessions can be used as identifiers for i.e. cookies on
-a Web system. The passwords are stored as MD5 hashes (this means, the
-password is not stored in clear text).
+is, a meaningful user login/password pair, the user's name and privilege 
+level) via a database. The sessions can be used as identifiers for i.e. 
+cookies on a Web system. The passwords are stored as MD5 hashes (this means, 
+the password is never stored in clear text).
 
 User::Simple was originally developed with a PostgreSQL database in
 mind, but should work with any real DBMS. Sadly, this rules out DBD::CSV,
-DBD::XBase, DBD::Excel and many others - The user table requires the driver 
-to implement primary keys and NOT NULL/UNIQUE constraints. 
+DBD::XBase, DBD::Excel and many other implementations based on SQL::Statement -
+The user table requires the driver to implement primary keys and 
+NOT NULL/UNIQUE constraints. 
+
+The functionality is split into two modules, L<User::Simple> and 
+L<User::Simple::Admin>. This module provides the functionality your system
+will need for any interaction started by the user - Authentication, session
+management, querying the user's data and changing the password. Any other
+changes (i.e., changing the user's name, login or level) should be carried out 
+using L<User::Simple::Admin>.
+
+=head2 CONSTRUCTOR
 
 In order to create a User::Simple object, call the new argument with an
 active DBI (database connection) object as its only argument:
 
   $usr = User::Simple->new(db => $db, [tbl => $table], [durat => $duration],
-                           [debug => $debug]);
+                           [debug => $debug], [adm_level => $level]);
 
 Of course, the database must have the right structure in it - please check
 L<User::Simple::Admin> for more information.
@@ -63,6 +75,20 @@ debug >= 3, absolutely everything is shown if debug == 5. Be warned that when
 debug is set to 5, information such as cleartext passwords will be logged as 
 well!
 
+C<adm_level> gives us an extra way to tell if a user has administrative 
+privileges - The users with a level under the number specified here will be 
+seen as unprivileged, and those whose level is equal or higher than it will
+be treated as administrative users. The user level assigned to a user does not
+mean anything for User::Simple, but might be used inside your application. If
+C<adm_level> is not specified, it will default to 1 (meaning that regular 
+users' level is only 0, and any positive integer is an administrative user, as
+traditional in Perl's truth management). Please note (explanation follows 
+below) that using C<adm_level> and the C<is_admin> method is deprecated in
+favor of directly querying C<$usr-E<gt>level>, and will be dropped in the 
+future.
+
+=head2 SESSION CREATION/DELETION
+
 Once the object is created, we can ask it to verify that a given user is
 valid, either by checking against a session string or against a login/password
 pair::
@@ -75,10 +101,6 @@ current session (or to create a new session), we want only to verify the
 password matches (i.e. when asking for the current password as a confirmation 
 in order to change a user's password). It will almost always be left false.
 
-To change the user's password:
-
-  $ok = $usr->set_passwd($nvo_pass);
-
 To end a session:
 
   $ok = $usr->end_session;
@@ -87,16 +109,36 @@ To verify whether we have successfully validated a user:
 
   $ok = $usr->is_valid;
 
+=head2 QUERYING THE CURRENT USER'S DATA
+
 To check the user's attributes (name, login and ID):
 
   $name = $usr->name;
   $login = $usr->login;
   $id = $usr->id;
 
-To check if the user has administrative access (again, see 
-L<User::Simple::Admin> for further details):
+To change the user's password:
 
+  $ok = $usr->set_passwd($new_pass);
+
+=head2 USER LEVEL / ADMINISTRATIVE ACCESS
+
+To check for the user level (or simply to check if the user has administrative
+access) (again, see L<User::Simple::Admin> for further details):
+
+  $level = $usr->level;
   $ok = $usr->is_admin;
+
+Please note that User::Simple will only tell your application whether a user
+has administrative access (that is, C<$usr-E<gt>is_admin> is true, or 
+C<$usr-E<gt>level> is equal or larger than C<adm_level>. The C<is_admin> method
+is for integration to your system, and does not mean that the user can access 
+the functionality of User::Simple::Admin.
+
+Yes, this last note takes away part of the nice simplicity of User::Simple, and
+that is not a good thing. This is still a very young module, but has already
+some systems depending on its way of working. Consider C<is_admin> as
+B<deprecated>, support for it will be dropped in the future.
 
 =head1 DEPENDS ON
 
@@ -113,6 +155,10 @@ L<User::Simple::Admin> for administrative routines
 This module still requires a decent test suite. In order for it to become 
 automatic, we need to be able to operate without a real RDBMS, i.e., with
 DBD::CSV. 
+
+The C<is_admin>, C<adm_level> and related infrastructure feels like a kludge,
+and cries to be removed. As for now, a simple warning about it being deprecated
+will do.
 
 I would also like to separate a bit the table structure, allowing for
 flexibility - This means, if you added some extra fields to the table, 
@@ -138,7 +184,7 @@ use Date::Calc qw(Today_and_Now Add_Delta_DHMS Delta_DHMS);
 use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
-our $VERSION = '0.8';
+our $VERSION = '0.9';
 
 ######################################################################
 # Constructor
@@ -150,7 +196,7 @@ sub new {
 
     # Verify we got the right arguments
     for my $key (keys %init) {
-	next if $key =~ /^(db|debug|durat|tbl)$/;
+	next if $key =~ /^(db|debug|durat|tbl|adm_level)$/;
 	carp "Unknown argument received: $key";
 	return undef;
     }
@@ -159,6 +205,7 @@ sub new {
     $init{tbl} = 'user_simple' unless defined $init{tbl};
     $init{durat} = 30 unless defined $init{durat};
     $init{debug} = 2 unless defined $init{debug};
+    $init{adm_level} = 1 unless defined $init{adm_level};
 
     unless (defined($init{db}) and isa($init{db}, 'DBI::db')) {
 	carp "Mandatory db argument must be a valid (DBI) database handle";
@@ -171,7 +218,7 @@ sub new {
 	carp "Invalid table name $init{tbl}";
 	return undef;
     }
-    unless ($sth=$init{db}->prepare("SELECT id, login, name, is_admin 
+    unless ($sth=$init{db}->prepare("SELECT id, login, name, level 
         FROM $init{tbl} LIMIT 1") and $sth->execute) {
 	carp "Table $init{tbl} does not exist or has wrong structure";
 	return undef;
@@ -182,8 +229,14 @@ sub new {
 	return undef;
     }
 
-    unless ($init{debug} =~ /^\d+$/ and $init{debug} <= 5) {
+    unless ($init{debug} =~ /^\d+$/ and $init{debug} >= 0 and
+	    $init{debug} <= 5) {
 	carp "Debug level must be an integer between 0 and 5";
+	return undef;
+    }
+
+    unless ($init{adm_level} =~ /^\d+$/ and $init{adm_level} >= 0) {
+	carp "Administrative level must be a non-negative integer";;
 	return undef;
     }
 
@@ -284,7 +337,7 @@ sub end_session {
         session_exp = NULL WHERE id = ?");
     $sth->execute($self->{id});
 
-    for my $key qw(id is_admin login name session session_exp) {
+    for my $key qw(id level login name session session_exp) {
 	delete $self->{$key};
     }
 
@@ -299,7 +352,14 @@ sub name { my $self = shift; return $self->{name}; }
 sub login { my $self = shift; return $self->{login}; }
 sub id { my $self = shift; return $self->{id}; }
 sub session { my $self = shift; return $self->{session}; }
-sub is_admin { my $self = shift; return $self->{is_admin}; }
+sub level { my $self = shift; return $self->{level}; }
+
+sub is_admin { 
+    my $self = shift; 
+    $self->_debug(2,"is_admin is deprecated! Please use level instead");
+    return 1 if $self->level >= $self->{adm_level};
+    return 0;
+}
 
 sub set_passwd {
     my ($self, $pass, $crypted, $sth);
@@ -343,11 +403,11 @@ sub _populate_from_id {
     my ($self, $sth);
     $self=shift;
 
-    $sth=$self->{db}->prepare("SELECT login, name, is_admin, session, 
+    $sth=$self->{db}->prepare("SELECT login, name, level, session, 
         session_exp FROM $self->{tbl} WHERE id=?");
     $sth->execute($self->{id});
 
-    ($self->{login}, $self->{name}, $self->{is_admin}, $self->{session}, 
+    ($self->{login}, $self->{name}, $self->{level}, $self->{session}, 
      $self->{session_exp}) = $sth->fetchrow_array;
 
     return 1;

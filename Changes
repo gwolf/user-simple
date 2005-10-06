@@ -1,6 +1,15 @@
 Revision history for Perl extension User::Simple.
 
-0.01  Wed Jun 15 10:52:29 2005
+0.9  Sat Jul 30 10:45:15 2005
+	- Added Date::Calc and Digest::MD5 as prerequisite modules
+        - Added a more granular 'level' for the users instead of the 
+	  all-or-nothing is_admin infrastructure
+	- Modified the is_admin infrastructure so old code works
+	  seamlessly with the new version (although sends out some
+	  warnings, as is_admin is officially deprecated)
+        - Added/clarified some documentation
+
+0.8  Wed Jun 15 10:52:29 2005
 	- original version; created by h2xs 1.23 with options
 		-X User::Simple
 
