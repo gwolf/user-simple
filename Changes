@@ -1,5 +1,10 @@
 Revision history for Perl extension User::Simple.
 
+1.23 Sun Oct  2 11:45:35 CDT 2005
+	- Bugfix: Some DBDs return uppercase fields, some
+	  lowercase... Try to handle them all correctly (or at least,
+	  not as incorrectly :) )
+
 1.22 Mon Sep 26 19:47:12 2005
         - Bugfix: Last remanent of old name/level structure
 	  removed. Thanks, Alex Juarez!

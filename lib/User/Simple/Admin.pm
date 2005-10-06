@@ -310,10 +310,7 @@ sub has_db_structure {
 # Retrieving information
 
 sub dump_users { 
-    # Some DBDs are case-insensitive towards Perl (we can query/modify the
-    # columns case-insensitively), but internally are case sensitive. Gah, we
-    # work around that to provide the much more common lowercase fields...
-    my ($self, $order, $sth, $results, %users);
+    my ($self, $order, $sth, %users);
     $self = shift;
 
     unless ($sth = $self->{db}->prepare("SELECT * FROM $self->{tbl}") 
@@ -323,15 +320,27 @@ sub dump_users {
     }
     $sth->execute;
 
-    $results = $sth->fetchall_hashref('ID');
 
     # Keep to myself the internal fields, translate the fieldnames to lowercase
-    for my $user (keys %$results) {
-	for my $in_field (keys %{$results->{$user}}) {
+    while (my $row = $sth->fetchrow_hashref) {
+	for my $in_field (keys %$row) {
+	    my ($id);
+	    # Some DBDs are case-insensitive towards Perl (we can query/modify 
+	    # the columns case-insensitively), but internally are case
+	    # sensitive. Gah, we work around that to provide the much more 
+	    # common lowercase fields... This might still have some problems
+	    # attached, please tell me if it breaks for you.
+	    for my $case qw(id ID Id iD) {
+		if (exists $row->{$case}) {
+		    $id = $row->{$case};
+		    last;
+		}
+	    }
+	    carp "Did not find an ID field - Cannot continue" unless $id;
 	    my $out_field = lc($in_field);
 	    next if $out_field =~ /^(?:id|session|session_exp)$/;
 
-	    $users{$user}{$out_field} = $results->{$user}{$in_field};
+	    $users{$id}{$out_field} = $row->{$in_field};
 	}
     }
     return %users;
