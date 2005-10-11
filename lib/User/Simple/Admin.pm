@@ -515,7 +515,7 @@ sub new_user {
 	$id++;
 
 	$sth = $db->prepare("INSERT INTO $self->{tbl} (id, login) 
-            VALUES (?, ?, ?, ?)");
+            VALUES (?, ?)");
 	$sth->execute($id, $param{login});
 
 	# But just to be sure, lets retreive the ID from the login.
