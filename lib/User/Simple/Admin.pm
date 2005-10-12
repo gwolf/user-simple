@@ -158,8 +158,8 @@ had been called.
 
 Modifies the requested attribute of the specified user, setting it to the new 
 value. Except for the login, they can all be set to null values - If the 
-password is set to a null value, the account will be locked (that is, no
-password will be accepted). The internal attributes C<id>, C<session> and 
+password is set to a null or empty value, the account will be locked (that is, 
+no password will be accepted). The internal attributes C<id>, C<session> and 
 C<session_exp> cannot be directly modified (you have the C<id> as the hash 
 keys).
 

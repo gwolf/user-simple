@@ -1,5 +1,10 @@
 Revision history for Perl extension User::Simple.
 
+1.35
+        - Gah... Using DBD::XBase in the tests lets many subtle
+          problems slip by... For example, 1.3 was released with a
+          broken User::Admin::new_user :-/
+
 1.3 Thu Oct  6 13:21:56 CDT 2005
 	- By popular demand, User::Simple (not necessarily from within
 	  ::Admin) can modify the user data - Not only that, but also

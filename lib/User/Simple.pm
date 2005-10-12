@@ -120,6 +120,11 @@ became extended attributes. You should not have to modify your code using
 C<User::Simple> anyway, as changes are transparent. Some minor API changes do 
 happen in C<User::Simple::Admin>, though. 
 
+Extended attributes are not checked in any way by User::Simple, they are just 
+stored in the database just as they are received - Some DBDs might not even
+verify they are of the correct data type. As always, if you want to ensure
+consistence, use a real RDBMS.
+
 Of course, beware: if the field does not exist, User::Simple will raise an 
 error and die just as if an unknown method had been called.
 
@@ -164,7 +169,7 @@ use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
 our $AUTOLOAD;
-our $VERSION = '1.3';
+our $VERSION = '1.35';
 
 ######################################################################
 # Constructor/destructor
