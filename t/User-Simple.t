@@ -4,7 +4,6 @@
 use strict;
 use DBI;
 use File::Temp qw(tempdir);
-use lib qw(/home/gwolf/User-Simple/lib);
 my ($db, $dbdir);
 
 #########################
