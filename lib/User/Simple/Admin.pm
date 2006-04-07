@@ -22,10 +22,11 @@ User::Simple::Admin - User::Simple user administration
   $id = $ua->id($login);
   $login = $ua->login($id);
 
-  $otherattrib = $user->otherattrib;
+  $otherattrib = $user->otherattrib($id);
 
   $ok = $usr->set_login($id, $login);
   $ok = $usr->set_passwd($id, $passwd);
+  $ok = $usr->set_otherattrib($id, $value);
   $ok = $usr->clear_session($id);
 
   $id = $ua->new_user(login => $login, passwd => $passwd, 
@@ -166,7 +167,7 @@ keys).
 Just as with the accessors, if you have extra columns, you can modify them the
 same way:
 
-  $ok = $usr->set_otherattrib($id);
+  $ok = $usr->set_otherattrib($id, $value);
 
 i.e.
 
@@ -379,14 +380,19 @@ sub login {
 # We need only the mutators for the special case fields - Handle everything
 # else via AUTOLOAD
 sub set_login { 
-    my ($self, $id, $new, $sth, $ret);
+    my ($self, $id, $new, $sth, $ret, $used);
     $self = shift;
     $id = shift;
     $new = shift;
 
     return undef unless $id;
 
-    if (my $used = $self->id($new)) {
+    # Setting the login to the current login? Noop doomed to fail, make it look
+    # as a success
+    $used = $self->id($new);
+    return 1 if $used and $used == $self->id($self->login($id));
+
+    if ($used) {
 	carp "The requested login is already used (ID $used).";
 	return undef;
     }
