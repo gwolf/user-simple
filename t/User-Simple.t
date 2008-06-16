@@ -3,8 +3,8 @@
 
 use strict;
 use DBI;
-use File::Temp qw(tempdir);
-my ($db, $dbdir);
+use File::Temp;
+my ($db, $tmp_fh);
 
 #########################
 
@@ -18,13 +18,13 @@ BEGIN { use_ok('User::Simple'); use_ok('User::Simple::Admin') };
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
 
-$dbdir = tempdir (CLEANUP => 1); # CLEANUP removes directory upon exiting
-eval { $db = DBI->connect("DBI:XBase:$dbdir") };
+$tmp_fh = File::Temp->new(TEMPLATE => 'User-Simple-build-XXXXXX');
+eval { $db = DBI->connect('DBI:SQLite:dbname=' .$tmp_fh->filename) };
 
 SKIP: {
     my ($ua, $adm_id, $usr_id, $usr, $session, %users);
     skip 'Not executing the complete tests: Database handler not created ' .
-	'(I need DBD::XBase for this)', 14 unless $db;
+	'(I need DBD::SQLite for this)', 37 unless $db;
 
     ###
     ### First, the User::Simple::Admin tests...
