@@ -3,8 +3,8 @@
 
 use strict;
 use DBI;
-use File::Temp;
-my ($db, $tmp_fh);
+use File::Temp qw(:mktemp);
+my ($db, $tmp_file);
 
 #########################
 
@@ -18,8 +18,8 @@ BEGIN { use_ok('User::Simple'); use_ok('User::Simple::Admin') };
 # Insert your test code below, the Test::More module is use()ed here so read
 # its man page ( perldoc Test::More ) for help writing this test script.
 
-$tmp_fh = File::Temp->new(TEMPLATE => 'User-Simple-build-XXXXXX');
-eval { $db = DBI->connect('DBI:SQLite:dbname=' .$tmp_fh->filename) };
+$tmp_file = mktemp('User-Simple-build-XXXXXX');
+eval { $db = DBI->connect('DBI:SQLite:dbname=' .$tmp_file) };
 
 SKIP: {
     my ($ua, $adm_id, $usr_id, $usr, $session, %users);
@@ -157,3 +157,4 @@ SKIP: {
     is($usr->adm_level, 0, 'Reported adm_level matches');
 
 }
+unlink($tmp_file)
