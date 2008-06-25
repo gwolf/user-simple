@@ -1,5 +1,14 @@
 Revision history for Perl extension User::Simple.
 
+1.38 Wed Jun 25 17:30:31 CDT 2008
+        - "The Kwalitee release"
+	- Added Test::Pod test
+	- Regenerated META.yml to be valid. Where did I take mine
+	  from?! 
+	- Completed license, author license, both in META.yml and in
+	  LICENSE 
+	- But still, no real, substantive changes!
+
 1.37 Mon Jun 23 10:41:00 CDT 2008
      	- Fixed remaining file locking problem which caused the tests
 	  to fail in *BSD systems. Thanks to Slaven Rezic and CPANTS

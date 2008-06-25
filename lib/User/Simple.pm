@@ -157,9 +157,11 @@ Gunnar Wolf <gwolf@gwolf.org>
 
 =head1 COPYRIGHT
 
-Copyright 2005 Gunnar Wolf / Instituto de Investigaciones Económicas UNAM
-This module is Free Software, it can be redistributed under the same terms 
-as Perl.
+Copyright 2005-2008 Gunnar Wolf / Instituto de Investigaciones
+Económicas UNAM
+
+This module is Free Software; it can be redistributed under the same
+terms as Perl.
 
 =cut
 
@@ -169,7 +171,7 @@ use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
 our $AUTOLOAD;
-our $VERSION = '1.37';
+our $VERSION = '1.38';
 
 ######################################################################
 # Constructor/destructor

@@ -11,5 +11,7 @@ WriteMakefile(
                          }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/User/Simple.pm', # retrieve abstract from module
-       AUTHOR         => 'Gunnar Wolf <gwolf@>') : ()),
+       AUTHOR         => 'Gunnar Wolf <gwolf@gwolf.org>') : (),
+       LICENSE        => 'perl'
+    ),
 );
