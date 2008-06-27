@@ -1,5 +1,9 @@
 Revision history for Perl extension User::Simple.
 
+1.40 Fri Jun 27 11:35:01 CDT 2008
+        - Bah... Why jump through that many hoops? Moving away from
+	  ExtUtils::MakeMaker to Module::Build
+
 1.38 Wed Jun 25 17:30:31 CDT 2008
         - "The Kwalitee release"
 	- Added Test::Pod test
