@@ -1,5 +1,9 @@
 Revision history for Perl extension User::Simple.
 
+1.42 Wed Dec 10 17:22:19 CST 2008
+        - Fixed a session hash predictability/clash vulnerability,
+	  reported by Eugene V. Lyubimkin via Damyan Ivanov. Thanks!
+
 1.40 Fri Jun 27 11:35:01 CDT 2008
         - Bah... Why jump through that many hoops? Moving away from
 	  ExtUtils::MakeMaker to Module::Build

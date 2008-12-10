@@ -79,7 +79,7 @@ well!
 
 Once the object is created, we can ask it to verify that a given user is
 valid, either by checking against a session string or against a login/password
-pair::
+pair:
 
   $ok = $usr->ck_session($session);
   $ok = $usr->ck_login($login, $passwd, [$no_sess]);
@@ -171,7 +171,7 @@ use Digest::MD5 qw(md5_hex);
 use UNIVERSAL qw(isa);
 
 our $AUTOLOAD;
-our $VERSION = '1.40';
+our $VERSION = '1.42';
 
 ######################################################################
 # Constructor/destructor
@@ -306,9 +306,10 @@ sub ck_login {
 	$self->_debug(3, "Not touching session");
 
     } else {
+	my $salt = _session_salt();
 	unless ($sth = $self->{db}->prepare("UPDATE $self->{tbl} SET 
                 session = ? WHERE id = ?") and 
-		$sth->execute(md5_hex(join('-', Today_and_Now)), $id)) {
+		$sth->execute(md5_hex(join('-', $salt, Today_and_Now)), $id)) {
 	    $self->_debug(1,'Could not create user session');
 	    return undef;
 	}
@@ -515,5 +516,12 @@ sub _refresh_session {
 	return undef;
     }
 }
+
+# Generates a random, printable (ASCII 46-126), 10 character long salt
+# to mix in the session generation.
+sub _session_salt {
+    join("", map { chr(rand()*78 + 46) } (0..10))
+}
+
 
 1;

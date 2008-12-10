@@ -10,7 +10,7 @@ my ($db, $tmp_file);
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 39;
+use Test::More tests => 40;
 BEGIN { use_ok('User::Simple'); use_ok('User::Simple::Admin') };
 
 #########################
@@ -22,7 +22,7 @@ $tmp_file = mktemp('User-Simple-build-XXXXXX');
 eval { $db = DBI->connect('DBI:SQLite:dbname=' .$tmp_file) };
 
 SKIP: {
-    my ($ua, $adm_id, $usr_id, $usr, $session, %users);
+    my ($ua, $adm_id, $usr_id, $usr, $session, %users, %sessions);
     skip 'Not executing the complete tests: Database handler not created ' .
 	'(I need DBD::SQLite for this)', 37 unless $db;
 
@@ -138,7 +138,7 @@ SKIP: {
 
     # Get the user's session
     ok($session = $usr->session, "Retreived the user's session");
-
+    
     # Try to log in with an invalid session, check that all of the data is
     # cleared.
     is($usr->ck_session('blah'), undef,
@@ -155,6 +155,17 @@ SKIP: {
     is($usr->login, 'user5', 'Reported login matches');
     is($usr->descr, 'A new description', 'Reported descr matches');
     is($usr->adm_level, 0, 'Reported adm_level matches');
+    
+    # Ensure that logging in several times in a row produces different
+    # session IDs (that is, that we are not vulnerable to time-based
+    # predictability - see changelog for 1.42)
+    %sessions = ();
+    map { $usr->ck_login('user5', 'a_password');
+	  $sessions{$usr->session} = $_} (1..10);
+    use YAML;print YAML::Dump %sessions;
+    is(scalar(keys %sessions), 10,
+       'Discrepancy in the number of generated sessions - possible clash?')
+    
 
 }
 unlink($tmp_file)
