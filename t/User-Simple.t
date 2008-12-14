@@ -162,7 +162,6 @@ SKIP: {
     %sessions = ();
     map { $usr->ck_login('user5', 'a_password');
 	  $sessions{$usr->session} = $_} (1..10);
-    use YAML;print YAML::Dump %sessions;
     is(scalar(keys %sessions), 10,
        'Discrepancy in the number of generated sessions - possible clash?')
     
