@@ -1,6 +1,6 @@
 ---
 name: User-Simple
-version: 1.42
+version: 1.43
 author:
   - 'Gunnar Wolf <gwolf@gwolf.org>'
 abstract: Simple user sessions management
@@ -18,7 +18,7 @@ build_requires:
 provides:
   User::Simple:
     file: lib/User/Simple.pm
-    version: 1.42
+    version: 1.43
   User::Simple::Admin:
     file: lib/User/Simple/Admin.pm
 generated_by: Module::Build version 0.280801

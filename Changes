@@ -1,4 +1,5 @@
 Revision history for Perl extension User::Simple.
+1.43 Tue Jan 20 13:37:10 CST 2009
 
         - Dropped spurious requirement of YAML in the test suite (that
           was added as a debugging aid :-/ ) Thanks to Slaven Rezic

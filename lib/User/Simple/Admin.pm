@@ -197,7 +197,7 @@ Gunnar Wolf <gwolf@gwolf.org>
 
 =head1 COPYRIGHT
 
-Copyright 2005-2008 Gunnar Wolf / Instituto de Investigaciones
+Copyright 2005-2009 Gunnar Wolf / Instituto de Investigaciones
 Económicas UNAM 
 
 This module is Free Software; it can be redistributed under the same
